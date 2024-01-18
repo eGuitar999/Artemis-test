@@ -5,6 +5,7 @@
 package frc.robot;
 
 
+import com.ctre.phoenix.sensors.WPI_Pigeon2;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
@@ -14,60 +15,67 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-/**
- * The VM is configured to automatically run this class, and to call the functions corresponding to
- * each mode, as described in the TimedRobot documentation. If you change the name of this class or
- * the package after creating this project, you must also update the build.gradle file in the
- * project.
- */
 public class Robot extends TimedRobot {
-  /**
-   * This function is run when the robot is first started up and should be used for any
-   * initialization code.
-   */
+  //Object initialization
+  private final XboxController controller = new XboxController(0);
+
   private final CANSparkMax frontLeft = new CANSparkMax(0, MotorType.kBrushless);
   private final CANSparkMax frontRight = new CANSparkMax(0, MotorType.kBrushless);
   private final CANSparkMax rearLeft = new CANSparkMax(0, MotorType.kBrushless);
   private final CANSparkMax rearRight = new CANSparkMax(0, MotorType.kBrushless);
 
+  private final DifferentialDrive drive = new DifferentialDrive(frontLeft, frontRight);
+
   private final RelativeEncoder leftEncoder = frontLeft.getEncoder();
   private final RelativeEncoder rightEncoder = frontRight.getEncoder();
+  private final double revToWheel = 198/2108;
+  private final double revToFoot = 1188 * Math.PI / 25296;
   
-
-  private final DifferentialDrive drive = new DifferentialDrive(frontLeft, frontRight);
-  private final XboxController controller = new XboxController(0);
+  private final WPI_Pigeon2 gyro = new WPI_Pigeon2(6);
+  private double gyroSetpoint = 0;
 
   @Override
   public void robotInit() {
     rearLeft.follow(frontLeft);
     rearRight.follow(frontRight);
+    frontLeft.setInverted(true);
+
+    drive.setMaxOutput(0.2);
+
+    leftEncoder.setPositionConversionFactor(revToFoot);
+    rightEncoder.setPositionConversionFactor(revToFoot);
   }
 
   @Override
   public void robotPeriodic() {
+    double distance = (leftEncoder.getPosition() + rightEncoder.getPosition()) / 2;
     SmartDashboard.putNumber("Encoder Left", leftEncoder.getPosition());
     SmartDashboard.putNumber("Encoder Right", rightEncoder.getPosition());
-    double distance = (leftEncoder.getPosition() + rightEncoder.getPosition()) / 2;
   }
 
   @Override
-  public void autonomousInit() {}
+  public void autonomousInit() {
+    leftEncoder.setPosition(0);
+    rightEncoder.setPosition(0);
+    gyro.setYaw(0);
+  }
 
   @Override
   public void autonomousPeriodic() {
-
+    //Auto-correcting to angle
+    double gyroError = gyroSetpoint - gyro.getAngle();
+    drive.tankDrive(-gyroError * 0.04, gyroError * 0.04);
   }
 
   @Override
   public void teleopInit() {
     leftEncoder.setPosition(0);
     rightEncoder.setPosition(0);
-
   }
 
   @Override
   public void teleopPeriodic() {
-    drive.arcadeDrive(-controller.getLeftY(), controller.getRightX());
+    drive.arcadeDrive(-controller.getLeftY(), -controller.getRightX());
   }
 
   @Override
